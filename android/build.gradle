@@ -1,0 +1,37 @@
+// Provide `flutter` extension properties to plugin sub-projects
+// that reference flutter.compileSdkVersion, flutter.minSdkVersion, etc.
+// This is needed because the Flutter Gradle Plugin only adds the `flutter`
+// extension to the :app project, but some plugins (e.g., geolocator_android)
+// reference it in their own build.gradle files.
+class FlutterExtension {
+    int compileSdkVersion = 34
+    int minSdkVersion = 21
+    int targetSdkVersion = 34
+    String ndkVersion = "26.1.10909125"
+    int versionCode = 1
+    String versionName = "1.0.0"
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+
+    // Inject `flutter` extension for sub-projects that need it
+    if (!project.extensions.findByName("flutter")) {
+        project.extensions.create("flutter", FlutterExtension)
+    }
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
