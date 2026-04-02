@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../../../shared/models/lat_lng_point.dart';
 import '../../../text_to_path/presentation/providers/text_path_provider.dart';
 import '../../data/datasources/directions_api_datasource.dart';
@@ -47,6 +48,14 @@ class RouteGenerationNotifier extends StateNotifier<AsyncValue<GeneratedRoute?>>
     state = const AsyncValue.loading();
 
     try {
+      if (ApiConstants.googleMapsApiKey.isEmpty) {
+        state = AsyncValue.error(
+          'Google Maps API 키가 설정되지 않았습니다.\n--dart-define=GOOGLE_MAPS_API_KEY=YOUR_KEY 로 빌드해 주세요.',
+          StackTrace.current,
+        );
+        return;
+      }
+
       final text = _ref.read(textInputProvider);
       final geoStrokes = _ref.read(geoStrokesProvider(userLocation));
 

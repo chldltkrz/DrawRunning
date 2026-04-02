@@ -31,6 +31,33 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   Timer? _timer;
   double _distanceCovered = 0;
   LatLngPoint? _lastPosition;
+  bool _listenerInstalled = false;
+
+  void _installLocationListener() {
+    if (_listenerInstalled) return;
+    _listenerInstalled = true;
+    ref.listen<AsyncValue<LatLngPoint>>(locationStreamProvider, (prev, next) {
+      next.whenData((position) {
+        if (_isRunning && _lastPosition != null) {
+          setState(() {
+            _distanceCovered += GeoMath.haversine(
+              _lastPosition!.latitude,
+              _lastPosition!.longitude,
+              position.latitude,
+              position.longitude,
+            );
+          });
+        }
+        _lastPosition = position;
+
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLng(
+            LatLng(position.latitude, position.longitude),
+          ),
+        );
+      });
+    });
+  }
 
   @override
   void dispose() {
@@ -57,7 +84,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
     });
   }
 
-  void _stopRun() {
+  Future<void> _stopRun() async {
     _pauseRun();
 
     final elapsed = _stopwatch.elapsed;
@@ -67,6 +94,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
         distance >= 10 ? durationSeconds / (distance / 1000) : 0.0;
 
     // Save run record
+    bool saved = false;
     final routeState = ref.read(routeGenerationProvider);
     final route = routeState.valueOrNull;
     if (route != null) {
@@ -97,18 +125,26 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
         endPoint: route.endPoint,
       );
 
-      ref.read(runHistoryProvider.notifier).addRun(record);
+      try {
+        await ref.read(runHistoryProvider.notifier).addRun(record);
+        saved = true;
+      } catch (_) {
+        saved = false;
+      }
     }
 
     _stopwatch.reset();
 
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text(AppStrings.runComplete),
+        title: Text(saved ? AppStrings.runComplete : AppStrings.runComplete),
         content: Text(
           '${AppStrings.distance}: ${(distance / 1000).toStringAsFixed(2)} km\n'
-          '${AppStrings.time}: ${_formatDuration(elapsed)}',
+          '${AppStrings.time}: ${_formatDuration(elapsed)}'
+          '${saved ? '' : '\n\n기록 저장에 실패했습니다.'}',
         ),
         actions: [
           TextButton(
@@ -126,27 +162,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final routeState = ref.watch(routeGenerationProvider);
-    final locationStream = ref.watch(locationStreamProvider);
-
-    // Track distance
-    locationStream.whenData((position) {
-      if (_isRunning && _lastPosition != null) {
-        _distanceCovered += GeoMath.haversine(
-          _lastPosition!.latitude,
-          _lastPosition!.longitude,
-          position.latitude,
-          position.longitude,
-        );
-      }
-      _lastPosition = position;
-
-      // Follow user on map
-      _mapController?.animateCamera(
-        CameraUpdate.newLatLng(
-          LatLng(position.latitude, position.longitude),
-        ),
-      );
-    });
+    _installLocationListener();
 
     return Scaffold(
       body: routeState.when(

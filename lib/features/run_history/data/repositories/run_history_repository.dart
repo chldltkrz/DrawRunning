@@ -40,6 +40,10 @@ class RunHistoryRepository {
           )
         ''');
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        // Future migrations go here:
+        // if (oldVersion < 2) { await db.execute('ALTER TABLE ...'); }
+      },
     );
   }
 
