@@ -50,6 +50,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppConstants.appName),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Run History',
+            onPressed: () => context.push('/history'),
+          ),
+        ],
       ),
       body: fontAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
