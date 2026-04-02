@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/polyline_codec.dart';
 import '../../domain/entities/run_record.dart';
@@ -32,7 +33,7 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Run Detail'),
+        title: const Text(AppStrings.runDetail),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -46,11 +47,13 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
       ),
       body: runsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+          child: Text('${AppStrings.errorGeneric}: $e'),
+        ),
         data: (runs) {
           final run = runs.where((r) => r.id == widget.runId).firstOrNull;
           if (run == null) {
-            return const Center(child: Text('Run not found'));
+            return Center(child: Text(AppStrings.runNotFound));
           }
           return _buildDetail(context, run);
         },
@@ -94,7 +97,7 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
                 ),
                 icon: BitmapDescriptor.defaultMarkerWithHue(
                     BitmapDescriptor.hueGreen),
-                infoWindow: const InfoWindow(title: 'Start'),
+                infoWindow: const InfoWindow(title: AppStrings.startMarker),
               ),
               Marker(
                 markerId: const MarkerId('end'),
@@ -104,7 +107,7 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
                 ),
                 icon: BitmapDescriptor.defaultMarkerWithHue(
                     BitmapDescriptor.hueRed),
-                infoWindow: const InfoWindow(title: 'End'),
+                infoWindow: const InfoWindow(title: AppStrings.endMarker),
               ),
             },
             zoomControlsEnabled: true,
@@ -129,11 +132,10 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
   }
 
   Widget _buildStatsSheet(BuildContext context, RunRecord run) {
-    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final d = run.date;
     final dateStr =
         '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')} '
-        '(${weekdays[d.weekday - 1]}) '
+        '(${AppStrings.weekdays[d.weekday - 1]}) '
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
     return Container(
@@ -187,17 +189,17 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
               _buildStat(
                 Icons.straighten,
                 run.formattedDistance,
-                'Distance',
+                AppStrings.distance,
               ),
               _buildStat(
                 Icons.timer,
                 run.formattedDuration,
-                'Time',
+                AppStrings.time,
               ),
               _buildStat(
                 Icons.speed,
                 '${run.formattedPace}/km',
-                'Pace',
+                AppStrings.pace,
               ),
             ],
           ),
@@ -252,12 +254,12 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Run'),
-        content: const Text('Are you sure you want to delete this run record?'),
+        title: const Text(AppStrings.deleteRun),
+        content: const Text(AppStrings.deleteRunConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: const Text(AppStrings.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -266,7 +268,7 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
               context.pop();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text(AppStrings.delete),
           ),
         ],
       ),

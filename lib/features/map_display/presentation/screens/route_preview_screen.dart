@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../route_generation/domain/entities/generated_route.dart';
 import '../../../route_generation/presentation/providers/route_generation_provider.dart';
@@ -30,7 +31,7 @@ class _RoutePreviewScreenState extends ConsumerState<RoutePreviewScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Route Preview'),
+        title: const Text(AppStrings.routePreview),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -44,18 +45,18 @@ class _RoutePreviewScreenState extends ConsumerState<RoutePreviewScreen> {
             children: [
               const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
-              Text('Error: $e'),
+              Text(AppStrings.errorRouteGeneration),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => context.pop(),
-                child: const Text('Go Back'),
+                child: const Text(AppStrings.goBack),
               ),
             ],
           ),
         ),
         data: (route) {
           if (route == null) {
-            return const Center(child: Text('No route generated'));
+            return Center(child: Text(AppStrings.noRouteGenerated));
           }
           return _buildRoutePreview(context, route);
         },
@@ -137,7 +138,7 @@ class _RoutePreviewScreenState extends ConsumerState<RoutePreviewScreen> {
           route.startPoint.longitude,
         ),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Start'),
+        infoWindow: const InfoWindow(title: AppStrings.startMarker),
       ),
       Marker(
         markerId: const MarkerId('end'),
@@ -146,7 +147,7 @@ class _RoutePreviewScreenState extends ConsumerState<RoutePreviewScreen> {
           route.endPoint.longitude,
         ),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: 'End'),
+        infoWindow: const InfoWindow(title: AppStrings.endMarker),
       ),
     };
   }
@@ -216,17 +217,17 @@ class _RoutePreviewScreenState extends ConsumerState<RoutePreviewScreen> {
               _buildStat(
                 Icons.straighten,
                 '${(meta.totalDistanceMeters / 1000).toStringAsFixed(1)} km',
-                'Distance',
+                AppStrings.distance,
               ),
               _buildStat(
                 Icons.timer,
-                '${meta.estimatedDurationMinutes.toStringAsFixed(0)} min',
-                'Est. Time',
+                '${meta.estimatedDurationMinutes.toStringAsFixed(0)}${AppStrings.minPerKm.substring(0, 1)}',
+                AppStrings.estimatedTime,
               ),
               _buildStat(
                 Icons.text_fields,
                 '${(meta.characterDistanceMeters / meta.totalDistanceMeters * 100).toStringAsFixed(0)}%',
-                'Text Path',
+                AppStrings.textPath,
               ),
             ],
           ),
@@ -242,7 +243,7 @@ class _RoutePreviewScreenState extends ConsumerState<RoutePreviewScreen> {
                     context.pop();
                   },
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Regenerate'),
+                  label: const Text(AppStrings.regenerate),
                 ),
               ),
               const SizedBox(width: 12),
@@ -250,7 +251,7 @@ class _RoutePreviewScreenState extends ConsumerState<RoutePreviewScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () => context.push('/navigation'),
                   icon: const Icon(Icons.directions_run),
-                  label: const Text('Start Run'),
+                  label: const Text(AppStrings.startRun),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.secondaryColor,
                     foregroundColor: Colors.white,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/entities/run_record.dart';
 import '../providers/run_history_provider.dart';
@@ -15,7 +16,7 @@ class RunHistoryScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Run History'),
+        title: const Text(AppStrings.runHistoryTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -29,12 +30,12 @@ class RunHistoryScreen extends ConsumerWidget {
             children: [
               const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
-              Text('Error loading history: $e'),
+              Text('${AppStrings.errorLoadingHistory}: $e'),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () =>
                     ref.read(runHistoryProvider.notifier).loadRuns(),
-                child: const Text('Retry'),
+                child: const Text(AppStrings.retry),
               ),
             ],
           ),
@@ -63,14 +64,14 @@ class RunHistoryScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'No runs yet',
+              AppStrings.noRunsYet,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.grey.shade600,
                   ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Complete your first run to see it here!',
+              AppStrings.noRunsSubtitle,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.grey.shade500,
                   ),
@@ -80,7 +81,7 @@ class RunHistoryScreen extends ConsumerWidget {
             ElevatedButton.icon(
               onPressed: () => context.go('/'),
               icon: const Icon(Icons.add),
-              label: const Text('Start a Run'),
+              label: const Text(AppStrings.startARun),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryColor,
                 foregroundColor: Colors.white,

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/geo_math.dart';
 import '../../../../core/utils/polyline_codec.dart';
@@ -104,10 +105,10 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Run Complete!'),
+        title: const Text(AppStrings.runComplete),
         content: Text(
-          'Distance: ${(distance / 1000).toStringAsFixed(2)} km\n'
-          'Time: ${_formatDuration(elapsed)}',
+          '${AppStrings.distance}: ${(distance / 1000).toStringAsFixed(2)} km\n'
+          '${AppStrings.time}: ${_formatDuration(elapsed)}',
         ),
         actions: [
           TextButton(
@@ -115,7 +116,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
               Navigator.of(ctx).pop();
               context.go('/');
             },
-            child: const Text('Done'),
+            child: const Text(AppStrings.done),
           ),
         ],
       ),
@@ -150,10 +151,12 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
     return Scaffold(
       body: routeState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+          child: Text('${AppStrings.errorGeneric}: $e'),
+        ),
         data: (route) {
           if (route == null) {
-            return const Center(child: Text('No route'));
+            return Center(child: Text(AppStrings.noRouteGenerated));
           }
           return _buildNavigation(context, route);
         },
@@ -264,15 +267,15 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
             children: [
               _buildNavStat(
                 (_distanceCovered / 1000).toStringAsFixed(2),
-                'km',
+                AppStrings.km,
               ),
               _buildNavStat(
                 _formatDuration(_stopwatch.elapsed),
-                'time',
+                AppStrings.time,
               ),
               _buildNavStat(
                 _calculatePace(),
-                'min/km',
+                AppStrings.minPerKm,
               ),
             ],
           ),
@@ -285,21 +288,23 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
               if (_isRunning) ...[
                 _buildControlButton(
                   Icons.pause,
-                  'Pause',
+                  AppStrings.pause,
                   Colors.orange,
                   _pauseRun,
                 ),
                 const SizedBox(width: 24),
                 _buildControlButton(
                   Icons.stop,
-                  'Stop',
+                  AppStrings.stop,
                   Colors.red,
                   _stopRun,
                 ),
               ] else ...[
                 _buildControlButton(
                   Icons.play_arrow,
-                  _stopwatch.elapsed.inSeconds > 0 ? 'Resume' : 'Start',
+                  _stopwatch.elapsed.inSeconds > 0
+                      ? AppStrings.resume
+                      : AppStrings.start,
                   AppTheme.secondaryColor,
                   _startRun,
                 ),

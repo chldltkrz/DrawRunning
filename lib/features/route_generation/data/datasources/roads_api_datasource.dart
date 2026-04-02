@@ -27,8 +27,17 @@ class SnappedPoint {
   }
 }
 
+class RoadsApiException implements Exception {
+  final String message;
+  final bool isTimeout;
+  const RoadsApiException(this.message, {this.isTimeout = false});
+  @override
+  String toString() => message;
+}
+
 class RoadsApiDatasource {
   final Dio _dio;
+  int _consecutiveErrors = 0;
 
   RoadsApiDatasource(this._dio);
 
@@ -74,11 +83,12 @@ class RoadsApiDatasource {
         },
       );
 
+      _consecutiveErrors = 0;
+
       final data = response.data as Map<String, dynamic>;
       final snappedPoints = data['snappedPoints'] as List<dynamic>?;
 
       if (snappedPoints == null || snappedPoints.isEmpty) {
-        // If snapping fails, return original points
         return chunk;
       }
 
@@ -86,9 +96,24 @@ class RoadsApiDatasource {
           .map((sp) => SnappedPoint.fromJson(sp as Map<String, dynamic>))
           .map((sp) => sp.location)
           .toList();
-    } on DioException {
-      // Fallback to original points on API error
+    } on DioException catch (e) {
+      _consecutiveErrors++;
+
+      if (_consecutiveErrors >= 3) {
+        final isTimeout = e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout;
+        throw RoadsApiException(
+          isTimeout ? 'timeout' : 'network',
+          isTimeout: isTimeout,
+        );
+      }
+
+      // Fallback to original points for isolated errors
       return chunk;
     }
+  }
+
+  void resetErrorCount() {
+    _consecutiveErrors = 0;
   }
 }

@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/app_strings.dart';
+import '../../../../core/providers/connectivity_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/lat_lng_point.dart';
+import '../../../location/data/datasources/location_datasource.dart';
 import '../../../location/presentation/providers/location_provider.dart';
+import '../../../route_generation/data/datasources/directions_api_datasource.dart';
+import '../../../route_generation/data/datasources/roads_api_datasource.dart';
 import '../../../route_generation/domain/usecases/generate_full_route.dart';
 import '../../../route_generation/presentation/providers/route_generation_provider.dart';
 import '../../../text_to_path/presentation/providers/text_path_provider.dart';
@@ -40,27 +46,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final routeState = ref.watch(routeGenerationProvider);
     final fontAsync = ref.watch(fontInitProvider);
 
-    // Listen for route generation completion
+    // Listen for route generation completion or error
     ref.listen<AsyncValue>(routeGenerationProvider, (prev, next) {
       if (next is AsyncData && next.value != null) {
         context.push('/route-preview');
+      } else if (next is AsyncError) {
+        _showRouteError(next.error);
       }
     });
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppConstants.appName),
+        title: const Text(AppStrings.appName),
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
-            tooltip: 'Run History',
+            tooltip: AppStrings.runHistory,
             onPressed: () => context.push('/history'),
           ),
         ],
       ),
       body: fontAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Font loading error: $e')),
+        error: (e, _) => Center(
+          child: Text('${AppStrings.errorFontLoading}: $e'),
+        ),
         data: (_) => _buildContent(
           context,
           textStrokes,
@@ -69,6 +79,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           locationAsync,
           routeState,
         ),
+      ),
+    );
+  }
+
+  void _showRouteError(Object error) {
+    String message = AppStrings.errorRouteGeneration;
+
+    if (error is DirectionsApiException || error is RoadsApiException) {
+      final isTimeout = (error is DirectionsApiException && error.isTimeout) ||
+          (error is RoadsApiException && error.isTimeout);
+      message = isTimeout ? AppStrings.errorTimeout : AppStrings.errorApiFailure;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: AppStrings.retry,
+          onPressed: () {
+            final location = ref.read(currentLocationProvider).valueOrNull;
+            if (location != null) {
+              ref.read(routeGenerationProvider.notifier).generateRoute(location);
+            }
+          },
+        ),
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -90,8 +128,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           TextField(
             controller: _textController,
             decoration: InputDecoration(
-              labelText: 'Enter text to draw',
-              hintText: 'e.g., HELLO',
+              labelText: AppStrings.textInputLabel,
+              hintText: AppStrings.textInputHint,
               suffixText:
                   '${_textController.text.length}/${AppConstants.maxTextLength}',
             ),
@@ -116,7 +154,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: textStrokes.isEmpty
                 ? const Center(
                     child: Text(
-                      'Type text above to see preview',
+                      AppStrings.textPreviewPlaceholder,
                       style: TextStyle(color: Colors.grey),
                     ),
                   )
@@ -129,7 +167,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               const Icon(Icons.straighten, size: 20),
               const SizedBox(width: 8),
-              const Text('Route Size'),
+              const Text(AppStrings.routeSize),
               Expanded(
                 child: Slider(
                   value: scale,
@@ -150,7 +188,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(
-                'Estimated route: ${(estimatedLength / 1000).toStringAsFixed(1)} km',
+                AppStrings.estimatedRoute.replaceFirst(
+                  '{km}',
+                  (estimatedLength / 1000).toStringAsFixed(1),
+                ),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Colors.grey.shade600,
                     ),
@@ -168,23 +209,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             clipBehavior: Clip.antiAlias,
             child: locationAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.location_off, size: 48, color: Colors.grey),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Location unavailable',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                    TextButton(
-                      onPressed: () => ref.refresh(currentLocationProvider),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
+              error: (e, _) => _buildLocationError(e),
               data: (location) => GoogleMap(
                 initialCameraPosition: CameraPosition(
                   target: LatLng(location.latitude, location.longitude),
@@ -209,6 +234,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _buildLocationError(Object error) {
+    String title = AppStrings.locationUnavailable;
+    String? message;
+    bool showSettings = false;
+
+    if (error is LocationServiceDisabledError) {
+      title = AppStrings.locationServiceDisabled;
+      message = AppStrings.locationServiceDisabledMessage;
+    } else if (error is LocationPermissionPermanentlyDeniedError) {
+      title = AppStrings.locationPermissionPermanentlyDenied;
+      message = AppStrings.locationPermissionPermanentlyDeniedMessage;
+      showSettings = true;
+    } else if (error is LocationPermissionDeniedError) {
+      title = AppStrings.locationPermissionDenied;
+      message = AppStrings.locationPermissionDeniedMessage;
+      showSettings = true;
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.location_off, size: 40, color: Colors.grey),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (message != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                message,
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => ref.refresh(currentLocationProvider),
+                  child: const Text(AppStrings.retry),
+                ),
+                if (showSettings)
+                  TextButton(
+                    onPressed: () => _openAppSettings(),
+                    child: const Text(AppStrings.openSettings),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAppSettings() async {
+    // Uses geolocator's built-in settings opener
+    await Geolocator.openAppSettings();
+  }
+
   Widget _buildGenerateButton(
     AsyncValue<LatLngPoint> locationAsync,
     AsyncValue routeState,
@@ -216,27 +313,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final text = ref.watch(textInputProvider);
     final isLoading = routeState is AsyncLoading;
     final canGenerate = text.isNotEmpty && locationAsync is AsyncData;
+    final isOnline = ref.watch(connectivityProvider).valueOrNull ?? true;
 
     if (isLoading) {
       return _buildLoadingButton();
     }
 
-    return ElevatedButton.icon(
-      onPressed: canGenerate
-          ? () {
-              final location = (locationAsync as AsyncData<LatLngPoint>).value;
-              ref
-                  .read(routeGenerationProvider.notifier)
-                  .generateRoute(location);
-            }
-          : null,
-      icon: const Icon(Icons.route),
-      label: const Text('Generate Route'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: Colors.grey.shade300,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!isOnline)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.wifi_off, size: 16, color: Colors.orange.shade700),
+                const SizedBox(width: 4),
+                Text(
+                  AppStrings.networkOffline,
+                  style: TextStyle(
+                    color: Colors.orange.shade700,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ElevatedButton.icon(
+          onPressed: canGenerate && isOnline
+              ? () {
+                  final location =
+                      (locationAsync as AsyncData<LatLngPoint>).value;
+                  ref
+                      .read(routeGenerationProvider.notifier)
+                      .generateRoute(location);
+                }
+              : null,
+          icon: const Icon(Icons.route),
+          label: const Text(AppStrings.generateRoute),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryColor,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: Colors.grey.shade300,
+          ),
+        ),
+      ],
     );
   }
 
@@ -245,26 +367,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final progress = ref.watch(generationProgressProvider);
 
     String stepText;
+    double overallProgress;
+
     switch (step) {
       case GenerationStep.snappingToRoads:
-        stepText = 'Finding roads...';
+        stepText = AppStrings.findingRoads;
+        overallProgress = progress * 0.4;
         break;
       case GenerationStep.orderingStrokes:
-        stepText = 'Optimizing order...';
+        stepText = AppStrings.optimizingOrder;
+        overallProgress = 0.4 + progress * 0.1;
         break;
       case GenerationStep.connectingRoute:
-        stepText = 'Connecting route...';
+        stepText = AppStrings.connectingRoute;
+        overallProgress = 0.5 + progress * 0.4;
         break;
       case GenerationStep.assembling:
-        stepText = 'Assembling...';
+        stepText = AppStrings.assembling;
+        overallProgress = 0.9 + progress * 0.1;
         break;
       default:
-        stepText = 'Generating...';
+        stepText = AppStrings.generating;
+        overallProgress = 0;
     }
 
     return Column(
       children: [
-        LinearProgressIndicator(value: progress),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: overallProgress,
+            minHeight: 6,
+            backgroundColor: Colors.grey.shade200,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${(overallProgress * 100).toInt()}%',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
         const SizedBox(height: 8),
         ElevatedButton.icon(
           onPressed: null,
@@ -280,9 +424,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   String _getScaleLabel(double scale) {
-    if (scale <= 10) return 'Small';
-    if (scale <= 25) return 'Medium';
-    if (scale <= 40) return 'Large';
-    return 'XL';
+    if (scale <= 10) return AppStrings.scaleSmall;
+    if (scale <= 25) return AppStrings.scaleMedium;
+    if (scale <= 40) return AppStrings.scaleLarge;
+    return AppStrings.scaleXL;
   }
 }

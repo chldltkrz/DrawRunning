@@ -16,12 +16,23 @@ class DirectionsResult {
   });
 }
 
+class DirectionsApiException implements Exception {
+  final String message;
+  final bool isTimeout;
+  const DirectionsApiException(this.message, {this.isTimeout = false});
+  @override
+  String toString() => message;
+}
+
 class DirectionsApiDatasource {
   final Dio _dio;
+  int _consecutiveErrors = 0;
 
   DirectionsApiDatasource(this._dio);
 
   /// Gets a walking route between two points.
+  /// Falls back to direct line only if the route simply doesn't exist.
+  /// Throws [DirectionsApiException] on network/server errors.
   Future<DirectionsResult> getWalkingRoute({
     required LatLngPoint origin,
     required LatLngPoint destination,
@@ -37,11 +48,13 @@ class DirectionsApiDatasource {
         },
       );
 
+      _consecutiveErrors = 0;
+
       final data = response.data as Map<String, dynamic>;
       final routes = data['routes'] as List<dynamic>?;
 
       if (routes == null || routes.isEmpty) {
-        // Return direct line if no route found
+        // No route found — use direct line (not an error, just no walking path)
         return DirectionsResult(
           polylinePoints: [origin, destination],
           distanceMeters: 0,
@@ -78,13 +91,30 @@ class DirectionsApiDatasource {
         distanceMeters: totalDistance,
         durationSeconds: totalDuration,
       );
-    } on DioException {
-      // Fallback to direct line
+    } on DioException catch (e) {
+      _consecutiveErrors++;
+
+      // First error in a multi-segment route: fall back silently
+      // but if errors pile up, surface to user
+      if (_consecutiveErrors >= 3) {
+        final isTimeout = e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout;
+        throw DirectionsApiException(
+          isTimeout ? 'timeout' : 'network',
+          isTimeout: isTimeout,
+        );
+      }
+
+      // Fallback to direct line for isolated errors
       return DirectionsResult(
         polylinePoints: [origin, destination],
         distanceMeters: 0,
         durationSeconds: 0,
       );
     }
+  }
+
+  void resetErrorCount() {
+    _consecutiveErrors = 0;
   }
 }

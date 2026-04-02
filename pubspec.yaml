@@ -23,6 +23,7 @@ dependencies:
 
   # Networking
   dio: ^5.7.0
+  connectivity_plus: ^6.1.1
 
   # Navigation
   go_router: ^14.6.2

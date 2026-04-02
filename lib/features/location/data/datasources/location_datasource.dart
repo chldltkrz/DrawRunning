@@ -2,24 +2,35 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../../../shared/models/lat_lng_point.dart';
 
+/// Custom exception types for granular error handling in the UI.
+class LocationServiceDisabledError implements Exception {
+  const LocationServiceDisabledError();
+}
+
+class LocationPermissionDeniedError implements Exception {
+  const LocationPermissionDeniedError();
+}
+
+class LocationPermissionPermanentlyDeniedError implements Exception {
+  const LocationPermissionPermanentlyDeniedError();
+}
+
 class LocationDatasource {
   Future<LatLngPoint> getCurrentLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw const LocationServiceDisabledException();
+      throw const LocationServiceDisabledError();
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        throw const PermissionDeniedException('Location permission denied');
+        throw const LocationPermissionDeniedError();
       }
     }
     if (permission == LocationPermission.deniedForever) {
-      throw const PermissionDeniedException(
-        'Location permissions are permanently denied',
-      );
+      throw const LocationPermissionPermanentlyDeniedError();
     }
 
     final position = await Geolocator.getCurrentPosition(
