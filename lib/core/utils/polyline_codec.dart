@@ -1,7 +1,33 @@
-/// Decodes Google's encoded polyline format into a list of (lat, lng) pairs.
+/// Encodes/decodes Google's encoded polyline format.
 /// See: https://developers.google.com/maps/documentation/utilities/polylinealgorithm
 class PolylineCodec {
   PolylineCodec._();
+
+  static String encode(List<(double lat, double lng)> points) {
+    final buffer = StringBuffer();
+    int prevLat = 0;
+    int prevLng = 0;
+
+    for (final (lat, lng) in points) {
+      final iLat = (lat * 1e5).round();
+      final iLng = (lng * 1e5).round();
+      _encodeValue(iLat - prevLat, buffer);
+      _encodeValue(iLng - prevLng, buffer);
+      prevLat = iLat;
+      prevLng = iLng;
+    }
+
+    return buffer.toString();
+  }
+
+  static void _encodeValue(int value, StringBuffer buffer) {
+    int v = value < 0 ? ~(value << 1) : (value << 1);
+    while (v >= 0x20) {
+      buffer.writeCharCode((0x20 | (v & 0x1F)) + 63);
+      v >>= 5;
+    }
+    buffer.writeCharCode(v + 63);
+  }
 
   static List<(double lat, double lng)> decode(String encoded) {
     final points = <(double, double)>[];

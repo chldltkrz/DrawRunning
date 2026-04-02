@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,10 +8,13 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/geo_math.dart';
+import '../../../../core/utils/polyline_codec.dart';
 import '../../../../shared/models/lat_lng_point.dart';
 import '../../../location/presentation/providers/location_provider.dart';
 import '../../../route_generation/domain/entities/generated_route.dart';
 import '../../../route_generation/presentation/providers/route_generation_provider.dart';
+import '../../../run_history/domain/entities/run_record.dart';
+import '../../../run_history/presentation/providers/run_history_provider.dart';
 
 class NavigationScreen extends ConsumerStatefulWidget {
   const NavigationScreen({super.key});
@@ -54,14 +58,56 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
 
   void _stopRun() {
     _pauseRun();
+
+    final elapsed = _stopwatch.elapsed;
+    final distance = _distanceCovered;
+    final durationSeconds = elapsed.inSeconds;
+    final paceSecondsPerKm =
+        distance >= 10 ? durationSeconds / (distance / 1000) : 0.0;
+
+    // Save run record
+    final routeState = ref.read(routeGenerationProvider);
+    final route = routeState.valueOrNull;
+    if (route != null) {
+      final encodedPolyline = PolylineCodec.encode(
+        route.fullPolyline
+            .map((p) => (p.latitude, p.longitude))
+            .toList(),
+      );
+      final segmentsJson = jsonEncode(
+        route.segments
+            .map((s) => {
+                  'type': s.type.name,
+                  'characterLabel': s.characterLabel,
+                  'pointCount': s.points.length,
+                })
+            .toList(),
+      );
+
+      final record = RunRecord(
+        inputText: route.inputText,
+        date: DateTime.now(),
+        totalDistanceMeters: distance,
+        durationSeconds: durationSeconds,
+        paceSecondsPerKm: paceSecondsPerKm,
+        routePolyline: encodedPolyline,
+        segmentsJson: segmentsJson,
+        startPoint: route.startPoint,
+        endPoint: route.endPoint,
+      );
+
+      ref.read(runHistoryProvider.notifier).addRun(record);
+    }
+
     _stopwatch.reset();
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Run Complete!'),
         content: Text(
-          'Distance: ${(_distanceCovered / 1000).toStringAsFixed(2)} km\n'
-          'Time: ${_formatDuration(_stopwatch.elapsed)}',
+          'Distance: ${(distance / 1000).toStringAsFixed(2)} km\n'
+          'Time: ${_formatDuration(elapsed)}',
         ),
         actions: [
           TextButton(
