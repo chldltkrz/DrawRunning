@@ -1,9 +1,9 @@
 class ApiConstants {
   ApiConstants._();
 
-  // Replace with your actual Google Maps API key
-  // For Dart-side HTTP calls (Roads API, Directions API)
-  static const String googleMapsApiKey = 'YOUR_API_KEY_HERE';
+  // Injected at build time via --dart-define=GOOGLE_MAPS_API_KEY=xxx
+  static const String googleMapsApiKey =
+      String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 
   static const String roadsApiBaseUrl = 'https://roads.googleapis.com';
   static const String directionsApiBaseUrl =

@@ -5,6 +5,17 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Extract --dart-define values for use in AndroidManifest.xml
+def dartDefines = [:]
+if (project.hasProperty('dart-defines')) {
+    dartDefines = project.property('dart-defines')
+        .split(',')
+        .collectEntries { entry ->
+            def pair = new String(entry.decodeBase64(), 'UTF-8').split('=', 2)
+            [(pair.first()): pair.length > 1 ? pair[1] : '']
+        }
+}
+
 android {
     namespace = "com.drawrunning.draw_running"
     compileSdk = 35
@@ -25,6 +36,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders += [
+            GOOGLE_MAPS_API_KEY: dartDefines['GOOGLE_MAPS_API_KEY'] ?: ''
+        ]
     }
 
     buildTypes {
